@@ -16,7 +16,17 @@ A Python-based prototype using OpenCV and Tesseract OCR to automatically detect,
 - **Cluster Resolution:** Estimates shot counts within tight groupings based on detected pixel area size.
     
 - **Automated Export:** Overlays scores onto the final image saved as `<target_number>.png` and exports data to `<target_number>.csv`.
-    
+
+
+<figure>
+  <img src="target.jpeg" width="500" alt="Foto der Zielscheibe">
+  <figcaption>Bild 1: Foto der Zielscheibe.</figcaption>
+</figure>
+
+<figure>
+  <img src="target_163856.png" width="500" alt="Automatisch analysierte Zielscheibe">
+  <figcaption>Bild 2: Automatisch analysierte Zielscheibe mit erkannten Ringen und Treffern.</figcaption>
+</figure>
 
 ## Prerequisites
 
