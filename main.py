@@ -131,9 +131,8 @@ def read_target_number(warped_img):
     _, bw = cv2.threshold(closed, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
 
     # --- DEBUG FENSTER ---
-    # Entferne die Rauten (#), um das OCR-Eingabebild zu prüfen!
-    # cv2.imshow("DEBUG OCR - Taste druecken zum Weiterlaufen", bw)
-    # cv2.waitKey(0)
+    cv2.imshow("DEBUG OCR - Taste druecken zum Weiterlaufen", bw)
+    cv2.waitKey(0)
     # ---------------------
 
     # 5. Tesseract: Einzelne Zeile (PSM 7) und nur Ziffern
