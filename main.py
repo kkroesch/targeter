@@ -4,20 +4,20 @@ import cv2
 import numpy as np
 import pytesseract
 
-# --- Konfiguration ---
+# --- Configuration ---
 IMAGE_PATH = "target.jpeg"
 TARGET_SIZE = 800
 
-# HSV-Farbbereich für den Hintergrundkarton
-# Bitte später an deine reale Pappe anpassen!
-# HSV-Farbbereich für ORANGE
+# HSV color range for the background cardboard
+# Please adjust to your actual cardboard later!
+# HSV color range for ORANGE
 HOLE_COLOR_LOWER = np.array([5, 120, 120])
 HOLE_COLOR_UPPER = np.array([25, 255, 255])
 # ---------------------
 
 
 def order_points(pts):
-    """Sortiert 4 Koordinaten: Oben-Links, Oben-Rechts, Unten-Rechts, Unten-Links"""
+    """Sorts 4 coordinates: Top-Left, Top-Right, Bottom-Right, Bottom-Left."""
     rect = np.zeros((4, 2), dtype="float32")
     s = pts.sum(axis=1)
     rect[0] = pts[np.argmin(s)]
@@ -29,7 +29,7 @@ def order_points(pts):
 
 
 def find_and_warp_target(image):
-    """Sucht die Pappe im Bild und entzerrt sie auf 800x800 Pixel."""
+    """Finds the cardboard in the image and warps it to 800x800 pixels."""
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     blurred = cv2.GaussianBlur(gray, (5, 5), 0)
 
@@ -68,7 +68,7 @@ def find_and_warp_target(image):
 
 
 def detect_and_draw_rings(warped_img):
-    """Detektiert das echte Zentrum und zeichnet die Ringe ein."""
+    """Detects the actual center and draws the rings."""
     gray = cv2.cvtColor(warped_img, cv2.COLOR_BGR2GRAY)
     _, mask_black = cv2.threshold(gray, 90, 255, cv2.THRESH_BINARY_INV)
     contours_black, _ = cv2.findContours(
@@ -77,7 +77,7 @@ def detect_and_draw_rings(warped_img):
 
     if not contours_black:
         print("Warnung: Schwarzer Spiegel nicht gefunden.")
-        return warped_img, None, []  # Immer 3 Werte zurückgeben!
+        return warped_img, None, []  # Always return 3 values!
 
     spiegel_cnt = max(contours_black, key=cv2.contourArea)
     M = cv2.moments(spiegel_cnt)
@@ -105,7 +105,7 @@ def detect_and_draw_rings(warped_img):
         if not unique_radii or r - unique_radii[-1] > 12:
             unique_radii.append(r)
 
-    # Zeichnen
+    # Drawing
     output_img = warped_img.copy()
     cv2.circle(output_img, (cx, cy), 4, (0, 0, 255), -1)
     for r in unique_radii:
@@ -115,27 +115,27 @@ def detect_and_draw_rings(warped_img):
 
 
 def read_target_number(warped_img):
-    """Schneidet den Bereich aus, verbindet Stempelpunkte und liest die OCR."""
-    # 1. Ausschnitt etwas großzügiger wählen (y: 10-100, x: 10-300)
+    """Crops the area, connects stamp dots, and reads the OCR."""
+    # 1. Select a slightly larger region (y: 10-100, x: 10-300)
     roi = warped_img[10:100, 10:300]
 
-    # 2. Skalieren (3x größer)
+    # 2. Scale (3x larger)
     roi_scaled = cv2.resize(roi, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC)
     gray = cv2.cvtColor(roi_scaled, cv2.COLOR_BGR2GRAY)
 
-    # 3. Morphologisches Schließen: Verbindet die Punkte der Stempelschrift
+    # 3. Morphological closing: connects the dots of the stamp text
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (4, 4))
     closed = cv2.morphologyEx(gray, cv2.MORPH_CLOSE, kernel)
 
-    # 4. Otsu-Thresholding für harten Kontrast
+    # 4. Otsu thresholding for hard contrast
     _, bw = cv2.threshold(closed, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
 
-    # --- DEBUG FENSTER ---
-    cv2.imshow("DEBUG OCR - Taste druecken zum Weiterlaufen", bw)
-    cv2.waitKey(0)
+    # --- DEBUG WINDOW ---
+    # cv2.imshow("DEBUG OCR - press a key to continue", bw)
+    # cv2.waitKey(0)
     # ---------------------
 
-    # 5. Tesseract: Einzelne Zeile (PSM 7) und nur Ziffern
+    # 5. Tesseract: Single line (PSM 7) and digits only
     config = "--psm 7 -c tessedit_char_whitelist=0123456789"
     text = pytesseract.image_to_string(bw, config=config)
 
@@ -143,11 +143,11 @@ def read_target_number(warped_img):
 
 
 def detect_holes_by_color(warped_img):
-    """Sucht nach dem farbigen Hintergrundkarton und löst Cluster auf."""
+    """Searches for the colored background cardboard and resolves clusters."""
     hsv = cv2.cvtColor(warped_img, cv2.COLOR_BGR2HSV)
     mask = cv2.inRange(hsv, HOLE_COLOR_LOWER, HOLE_COLOR_UPPER)
 
-    # Morphologisches Öffnen: Entfernt winziges Rauschen (Papierfasern), behält die Löcher
+    # Morphological opening: removes tiny noise (paper fibers), keeps the holes
     kernel = np.ones((3, 3), np.uint8)
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
 
@@ -155,15 +155,15 @@ def detect_holes_by_color(warped_img):
 
     holes = []
 
-    # --- Konfiguration für Cluster ---
-    # Bei 800x800 Pixeln hat ein einzelnes 4.5mm/5.6mm Loch meist grob diese Fläche:
+    # --- Cluster configuration ---
+    # At 800x800 pixels, a single 4.5mm/5.6mm hole typically has roughly this area:
     SINGLE_HOLE_AREA_EXPECTED = 250
-    MIN_AREA = 50  # Alles darunter ist nur Staub
+    MIN_AREA = 50  # Everything below this is just dust
 
     for cnt in contours:
         area = cv2.contourArea(cnt)
         if area > MIN_AREA:
-            # Berechne, wie viele Schüsse in diesem Fleck stecken (aufrunden)
+            # Calculate how many shots are in this blob (round up)
             shots_in_cluster = max(1, int(round(area / SINGLE_HOLE_AREA_EXPECTED)))
 
             M = cv2.moments(cnt)
@@ -171,20 +171,20 @@ def detect_holes_by_color(warped_img):
                 cx = int(M["m10"] / M["m00"])
                 cy = int(M["m01"] / M["m00"])
 
-                # Trage für jeden geschätzten Schuss im Cluster einen Treffer ein
+                # Record a hit for each estimated shot in the cluster
                 for _ in range(shots_in_cluster):
                     holes.append((cx, cy))
 
     if holes:
         print(
-            f"-> {len(holes)} Schussloch/-löcher über Farbe detektiert (inkl. Cluster-Schätzung)."
+            f"-> {len(holes)} bullet hole(s) detected via color (incl. cluster estimation)."
         )
 
     return holes
 
 
 def evaluate_and_draw_scores(image, holes, center, radii):
-    # Wenn keine Löcher da sind, brich sauber ab
+    # If no holes exist, cleanly exit
     if not holes or not radii or center is None:
         return image, []
 
@@ -212,19 +212,19 @@ def evaluate_and_draw_scores(image, holes, center, radii):
         pts = item["score"]
         total += pts
 
-        # --- HIER IST DIE ANPASSUNG ---
-        # 1. Roter Kreis um das Loch (Radius 12, Farbe Rot, Liniendicke 2)
+        # --- HERE IS THE ADJUSTMENT ---
+        # 1. Red circle around the hole (radius 12, color red, line thickness 2)
         cv2.circle(output_img, (hx, hy), 12, (0, 0, 255), 2)
 
-        # 2. Optional: Ein winziger roter Punkt exakt im Zentrum
+        # 2. Optional: a tiny red dot exactly at the center
         cv2.circle(output_img, (hx, hy), 2, (0, 0, 255), -1)
 
-        # Nummerierung neben dem Loch (jetzt auch in Rot für bessere Lesbarkeit)
+        # Numbering next to the hole (now also in red for better readability)
         cv2.putText(
             output_img, str(i + 1), (hx + 15, hy - 15), font, 0.6, (0, 0, 255), 2
         )
 
-        # Tabelle oben rechts (bleibt schwarz)
+        # Table at top right (stays black)
         cv2.putText(
             output_img,
             str(pts),
@@ -244,60 +244,60 @@ def evaluate_and_draw_scores(image, holes, center, radii):
 
 
 def main():
-    print(f"Lade {IMAGE_PATH}...")
+    print(f"Loading {IMAGE_PATH}...")
     original = cv2.imread(IMAGE_PATH)
 
     if original is None:
-        print(f"Fehler: Konnte {IMAGE_PATH} nicht laden.")
+        print(f"Error: Could not load {IMAGE_PATH}.")
         return
 
     try:
-        # 1. Entzerren
+        # 1. Warp
         warped = find_and_warp_target(original)
-        print("-> Bild erfolgreich entzerrt.")
+        print("-> Image successfully warped.")
 
-        # 2. Nummer OCR
+        # 2. Number OCR
         number = read_target_number(warped)
         if number:
-            print(f"-> Nummer erkannt: {number}")
+            print(f"-> Number detected: {number}")
             filename = f"target_{number}.png"
             csv_filename = f"{number}.csv"
         else:
-            print("-> Keine Nummer erkannt.")
+            print("-> No number detected.")
             filename = "target_unknown.png"
             csv_filename = "unknown.csv"
 
-        # 3. Ringe detektieren (WICHTIG: In 3 Variablen entpacken)
+        # 3. Detect rings (IMPORTANT: Unpack into 3 variables)
         img_with_rings, center, radii = detect_and_draw_rings(warped)
 
-        # 4. Löcher suchen (WICHTIG: Über das saubere "warped" Bild suchen, nicht über das Tupel)
+        # 4. Search holes (IMPORTANT: Search over the clean "warped" image, not over the tuple)
         holes = detect_holes_by_color(warped)
 
-        # 5. Auswerten
+        # 5. Evaluate
         final_img, scores_data = evaluate_and_draw_scores(
             img_with_rings, holes, center, radii
         )
 
-        # 6. Bild speichern
+        # 6. Save image
         cv2.imwrite(filename, final_img)
-        print(f"-> Fertiges Bild gespeichert unter: {filename}")
+        print(f"-> Finished image saved as: {filename}")
 
-        # 7. CSV speichern
+        # 7. Export CSV
         with open(csv_filename, "w", encoding="utf-8") as f:
             for i, item in enumerate(scores_data):
                 f.write(f"{i + 1};{item['score']}\n")
-        print(f"-> CSV exportiert unter: {csv_filename} (Treffer: {len(scores_data)})")
+        print(f"-> CSV exported as: {csv_filename} (Hits: {len(scores_data)})")
 
         cv2.imshow("Finale Analyse", final_img)
         cv2.waitKey(0)
         cv2.destroyAllWindows()
 
     except Exception as e:
-        # Erweitertes Error-Printing hilft enorm bei der Fehlersuche
+        # Extended error printing helps immensely with debugging
         import traceback
 
         traceback.print_exc()
-        print(f"Fehler in der Pipeline: {e}")
+        print(f"Error in pipeline: {e}")
 
 
 if __name__ == "__main__":
