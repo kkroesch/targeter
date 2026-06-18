@@ -115,22 +115,32 @@ def detect_and_draw_rings(warped_img):
 
 
 def read_target_number(warped_img):
-    """Schneidet den Bereich oben links aus und liest die Nummer via OCR."""
-    # ROI (Region of Interest) oben links ausschneiden
-    # Bei 800x800 liegt die Nummer ca. zwischen y:20-120 und x:20-300
-    roi = warped_img[20:120, 20:300]
+    """Schneidet den Bereich aus, verbindet Stempelpunkte und liest die OCR."""
+    # 1. Ausschnitt etwas großzügiger wählen (y: 10-100, x: 10-300)
+    roi = warped_img[10:100, 10:300]
 
-    gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
-    # Otsu-Threshold für maximalen Schwarz-Weiß-Kontrast der Schrift
-    _, bw = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    # 2. Skalieren (3x größer)
+    roi_scaled = cv2.resize(roi, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC)
+    gray = cv2.cvtColor(roi_scaled, cv2.COLOR_BGR2GRAY)
 
-    # Tesseract konfigurieren: Nur Ziffern (Whitelist) und PSM 7 (Einzelne Textzeile)
+    # 3. Morphologisches Schließen: Verbindet die Punkte der Stempelschrift
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (4, 4))
+    closed = cv2.morphologyEx(gray, cv2.MORPH_CLOSE, kernel)
+
+    # 4. Otsu-Thresholding für harten Kontrast
+    _, bw = cv2.threshold(closed, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
+    # --- DEBUG FENSTER ---
+    # Entferne die Rauten (#), um das OCR-Eingabebild zu prüfen!
+    # cv2.imshow("DEBUG OCR - Taste druecken zum Weiterlaufen", bw)
+    # cv2.waitKey(0)
+    # ---------------------
+
+    # 5. Tesseract: Einzelne Zeile (PSM 7) und nur Ziffern
     config = "--psm 7 -c tessedit_char_whitelist=0123456789"
     text = pytesseract.image_to_string(bw, config=config)
 
-    # Whitespaces/Zeilenumbrüche bereinigen
-    clean_text = text.strip()
-    return clean_text
+    return text.strip()
 
 
 def detect_holes_by_color(warped_img):
